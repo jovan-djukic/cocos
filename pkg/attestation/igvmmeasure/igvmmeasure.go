@@ -1,3 +1,5 @@
+// Copyright (c) Ultraviolet
+// SPDX-License-Identifier: Apache-2.0
 package igvmmeasure
 
 import (
@@ -36,7 +38,6 @@ func (m *IgvmMeasurement) Run(igvmBinaryPath string) error {
 	args = append(args, "-b")
 
 	out, err := exec.Command(binary, args...).CombinedOutput()
-
 	if err != nil {
 		fmt.Println("Error:", err)
 	}

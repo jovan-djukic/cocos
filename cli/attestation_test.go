@@ -283,7 +283,6 @@ func TestNewMeasureCmd_RunError(t *testing.T) {
 
 	assert.Error(t, err, "Expected an error but got nil")
 	assert.Contains(t, buf.String(), "Error initializing measurement", "Expected error message to be present")
-
 }
 
 func TestParseConfig(t *testing.T) {

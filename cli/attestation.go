@@ -558,6 +558,8 @@ func (cli *CLI) NewValidateAttestationValidationCmd() *cobra.Command {
 	return cmd
 }
 
+var newMeasurementFunc = igvmmeasure.NewIgvmMeasurement
+
 func (cli *CLI) NewMeasureCmd(igvmBinaryPath string) *cobra.Command {
 	igvmmeasureCmd := &cobra.Command{
 		Use:   "igvmmeasure <INPUT>",
@@ -566,26 +568,26 @@ func (cli *CLI) NewMeasureCmd(igvmBinaryPath string) *cobra.Command {
 			It ensures integrity verification for the IGVM file.`,
 
 		Args: cobra.MinimumNArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				fmt.Fprintln(os.Stderr, "Error: No input file provided")
-				os.Exit(1)
+				return fmt.Errorf("error: No input file provided")
 			}
 
 			inputFile := args[0]
 
-			measurement, err := igvmmeasure.NewIgvmMeasurement(inputFile, os.Stderr, os.Stdout)
+			measurement, err := newMeasurementFunc(inputFile, os.Stderr, os.Stdout)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error initializing measurement: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("error initializing measurement: %v", err)
 			}
 
 			if err := measurement.Run(igvmBinaryPath); err != nil {
-				fmt.Fprintf(os.Stderr, "Error running measurement: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("error running measurement: %v", err)
 			}
+
+			return nil
 		},
 	}
+
 	return igvmmeasureCmd
 }
 

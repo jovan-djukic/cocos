@@ -10,11 +10,12 @@ import (
 )
 
 type IgvmMeasurement struct {
-	pathToFile string
-	options    []string
-	stderr     io.Writer
-	stdout     io.Writer
-	cmd        *exec.Cmd
+	pathToFile  string
+	options     []string
+	stderr      io.Writer
+	stdout      io.Writer
+	cmd         *exec.Cmd
+	execCommand func(name string, arg ...string) *exec.Cmd
 }
 
 func NewIgvmMeasurement(pathToFile string, stderr, stdout io.Writer) (*IgvmMeasurement, error) {
@@ -23,9 +24,10 @@ func NewIgvmMeasurement(pathToFile string, stderr, stdout io.Writer) (*IgvmMeasu
 	}
 
 	return &IgvmMeasurement{
-		pathToFile: pathToFile,
-		stderr:     stderr,
-		stdout:     stdout,
+		pathToFile:  pathToFile,
+		stderr:      stderr,
+		stdout:      stdout,
+		execCommand: exec.Command,
 	}, nil
 }
 
@@ -37,7 +39,7 @@ func (m *IgvmMeasurement) Run(igvmBinaryPath string) error {
 	args = append(args, "measure")
 	args = append(args, "-b")
 
-	out, err := exec.Command(binary, args...).CombinedOutput()
+	out, err := m.execCommand(binary, args...).CombinedOutput()
 	if err != nil {
 		fmt.Println("Error:", err)
 	}
@@ -60,10 +62,14 @@ func (m *IgvmMeasurement) Stop() error {
 		return fmt.Errorf("no running process to stop")
 	}
 
-	// Use os.Process.Kill() instead of syscall.SIGTERM
 	if err := m.cmd.Process.Kill(); err != nil {
 		return fmt.Errorf("failed to stop process: %v", err)
 	}
 
 	return nil
+}
+
+// SetExecCommand allows tests to inject a mock execCommand function.
+func (m *IgvmMeasurement) SetExecCommand(cmdFunc func(name string, arg ...string) *exec.Cmd) {
+	m.execCommand = cmdFunc
 }

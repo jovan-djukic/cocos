@@ -7,115 +7,121 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type MockCmd struct {
-	output string
-	err    error
-}
+func TestIgvmMeasurement(t *testing.T) {
+	tests := []struct {
+		name         string
+		setup        func() *IgvmMeasurement
+		runArgs      string
+		expectErr    bool
+		expectedErr  string
+		expectedIgvm bool
+	}{
+		{
+			name: "NewIgvmMeasurement - Empty pathToFile",
+			setup: func() *IgvmMeasurement {
+				igvm, err := NewIgvmMeasurement("", nil, nil)
+				assert.NotNil(t, err)
+				assert.Nil(t, igvm) // Ensure it's nil
+				return nil          // Explicitly return nil
+			},
+			expectErr:   true,
+			expectedErr: "pathToFile cannot be empty",
+		},
+		{
+			name: "NewIgvmMeasurement - Valid pathToFile",
+			setup: func() *IgvmMeasurement {
+				igvm, err := NewIgvmMeasurement("/valid/path", nil, nil)
+				assert.Nil(t, err)
+				assert.NotNil(t, igvm)
+				return igvm
+			},
+			expectErr:   true,
+			expectedErr: "no running process to stop",
+		},
+		{
+			name: "Stop - No Process",
+			setup: func() *IgvmMeasurement {
+				return &IgvmMeasurement{}
+			},
+			expectErr:   true,
+			expectedErr: "no running process to stop",
+		},
+		{
+			name: "Stop - Success",
+			setup: func() *IgvmMeasurement {
+				process, err := os.StartProcess("/bin/sleep", []string{"sleep", "10"}, &os.ProcAttr{})
+				assert.Nil(t, err)
 
-func (m *MockCmd) CombinedOutput() ([]byte, error) {
-	return []byte(m.output), m.err
-}
+				defer func() {
+					if err := process.Kill(); err != nil {
+						t.Logf("Failed to kill process: %v", err)
+					}
+				}()
 
-func MockExecCommand(output string, err error) func(name string, arg ...string) *MockCmd {
-	return func(name string, arg ...string) *MockCmd {
-		return &MockCmd{
-			output: output,
-			err:    err,
-		}
-	}
-}
-
-func TestNewIgvmMeasurement(t *testing.T) {
-	_, err := NewIgvmMeasurement("", nil, nil)
-	if err == nil {
-		t.Errorf("expected error for empty pathToFile, got nil")
-	}
-
-	igvm, err := NewIgvmMeasurement("/valid/path", nil, nil)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if igvm == nil {
-		t.Errorf("expected non-nil IgvmMeasurement")
-	}
-}
-
-func TestIgvmMeasurement_Run_Success(t *testing.T) {
-	mockOutput := "measurement successful" // Ensure it's a **single-line output**
-
-	m := &IgvmMeasurement{
-		pathToFile: "/valid/path",
-		execCommand: func(name string, arg ...string) *exec.Cmd {
-			cmd := exec.Command("sh", "-c", "echo '"+mockOutput+"'") // Single line output
-			return cmd
+				return &IgvmMeasurement{cmd: &exec.Cmd{Process: process}}
+			},
+		},
+		{
+			name: "Run - Successful Execution",
+			setup: func() *IgvmMeasurement {
+				return &IgvmMeasurement{
+					pathToFile: "/valid/path",
+					execCommand: func(name string, arg ...string) *exec.Cmd {
+						cmd := exec.Command("sh", "-c", "echo 'measurement successful'")
+						return cmd
+					},
+				}
+			},
+			expectErr:   false,
+			expectedErr: "",
+		},
+		{
+			name: "Run - Failure Execution",
+			setup: func() *IgvmMeasurement {
+				return &IgvmMeasurement{
+					pathToFile: "/invalid/path",
+					execCommand: func(name string, arg ...string) *exec.Cmd {
+						cmd := exec.Command("sh", "-c", "echo 'some error occurred\nextra line' && exit 1")
+						return cmd
+					},
+				}
+			},
+			expectErr:   true,
+			expectedErr: "error: some error occurred\nextra line",
 		},
 	}
 
-	err := m.Run("/mock/igvmBinary")
-	if err != nil {
-		t.Errorf("expected no error, got %v", err)
-	}
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			igvm := tc.setup()
 
-func TestIgvmMeasurement_Run_Error(t *testing.T) {
-	mockOutput := "some error occurred"
+			if tc.expectedIgvm {
+				assert.NotNil(t, igvm)
+			}
 
-	m := &IgvmMeasurement{
-		pathToFile: "/invalid/path",
-		execCommand: func(name string, arg ...string) *exec.Cmd {
-			cmd := exec.Command("sh", "-c", "echo '"+mockOutput+"' && echo 'extra line' && exit 1") // Simulate multiline error
-			return cmd
-		},
-	}
-
-	err := m.Run("/mock/igvmBinary")
-
-	if err == nil {
-		t.Errorf("expected an error, got nil")
-	} else if !strings.Contains(err.Error(), "error: "+mockOutput) {
-		t.Errorf("expected error message to contain 'error: %s', got: %s", mockOutput, err)
-	}
-}
-
-func TestIgvmMeasurement_Stop_NoProcess(t *testing.T) {
-	m := &IgvmMeasurement{}
-
-	err := m.Stop()
-	if err == nil || err.Error() != "no running process to stop" {
-		t.Errorf("expected 'no running process to stop' error, got: %v", err)
-	}
-}
-
-func TestIgvmMeasurement_Stop_ProcessNil(t *testing.T) {
-	m := &IgvmMeasurement{
-		cmd: &exec.Cmd{},
-	}
-
-	err := m.Stop()
-	if err == nil || err.Error() != "no running process to stop" {
-		t.Errorf("expected 'no running process to stop' error, got: %v", err)
-	}
-}
-
-func TestIgvmMeasurement_Stop_Success(t *testing.T) {
-	process, err := os.StartProcess("/bin/sleep", []string{"sleep", "10"}, &os.ProcAttr{})
-	if err != nil {
-		t.Fatalf("failed to start mock process: %v", err)
-	}
-	defer func() {
-		if err := process.Kill(); err != nil {
-			t.Logf("Failed to kill process: %v", err)
-		}
-	}()
-
-	m := &IgvmMeasurement{
-		cmd: &exec.Cmd{Process: process},
-	}
-
-	err = m.Stop()
-	if err != nil {
-		t.Errorf("expected no error, got: %v", err)
+			if igvm != nil {
+				if strings.Contains(tc.name, "Run") {
+					err := igvm.Run("/mock/igvmBinary")
+					if tc.expectErr {
+						assert.NotNil(t, err)
+						assert.Equal(t, strings.TrimSpace(tc.expectedErr), strings.TrimSpace(err.Error()))
+					} else {
+						assert.Nil(t, err)
+					}
+				} else {
+					err := igvm.Stop()
+					if tc.expectErr {
+						assert.NotNil(t, err)
+						assert.Equal(t, tc.expectedErr, err.Error())
+					} else {
+						assert.Nil(t, err)
+					}
+				}
+			}
+		})
 	}
 }

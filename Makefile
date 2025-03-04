@@ -61,3 +61,9 @@ stop:
 install_service:
 	sudo install -m 644 $(SERVICE_FILE) $(SERVICE_DIR)/$(SERVICE_NAME).service
 	sudo systemctl daemon-reload
+
+
+IGVM_BUILD_SCRIPT := ./scripts/igvmmeasure/igvm.sh
+build-igvm:
+	@echo "Running build script for igvmmeasure..."
+	@$(IGVM_BUILD_SCRIPT)

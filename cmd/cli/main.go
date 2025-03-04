@@ -29,7 +29,7 @@ const (
 
 type config struct {
 	LogLevel       string `env:"AGENT_LOG_LEVEL" envDefault:"info"`
-	IgvmBinaryPath string `env:"IGVM_BINARY_PATH" envDefault:"./svsm/bin/igvmmeasure"`
+	IgvmBinaryPath string `env:"IGVM_BINARY_PATH" envDefault:"./build/igvmmeasure"`
 }
 
 func main() {

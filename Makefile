@@ -27,8 +27,9 @@ endef
 
 all: $(SERVICES)
 
-$(SERVICES):
+$(SERVICES): 
 	$(call compile_service,$@)
+	@if [ "$@" = "cli" ]; then $(MAKE) build-igvm; fi
 
 $(ATTESTATION_POLICY):
 	$(MAKE) -C ./scripts/attestation_policy
